@@ -1,6 +1,6 @@
-# fuseplushttp
+# fuseplushttp #
 
-## Pre-requisites
+## Pre-requisites ##
 
 1. FUSE kernel dev library (use package manager to get libfuse-dev)
 2. FUSE user library (compile via meson+ninja the libfuse library from https://github.com/libfuse/libfuse)
@@ -11,7 +11,7 @@
 
 --------------------------------------------------------------------------------------
 
-## What is this File System?
+## What is this File System? ##
 
 **_You can run ourfs --help for additional info._**
 
@@ -29,26 +29,26 @@ This file system does not contemplate simultaneous users or multi-machine setups
 
 ------------------------------------------------------------------------------
 
-##Example
+## Example ##
 
 *in the terminal*
 
 >./ourfs -f .
+
 >cat ./access
 
 --------------------------------------------------------------------
 
 *in the browser bar*
 
-localhost:3001/
+>localhost:3001/
 
 Record the string of text that appears (Example: uhjeifle12k3j4)
 
-localhost:3001/uhjeifle12k3j4
+>localhost:3001/uhjeifle12k3j4
 
 ---------------------------------------------------------------------
 
 *in the terminal*
 
 >The file was opened correctly, Congrats!
->
