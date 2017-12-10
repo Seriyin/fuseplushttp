@@ -122,10 +122,10 @@ static int our_open(const char *path, struct fuse_file_info *fi)
 
 	rand_buf[64]='\0';
 
-	write(STDOUT_FILENO,buf,65);
-	read(STDIN_FILENO,buf,3);
+	write(STDOUT_FILENO,rand_buf,65);
+	read(STDIN_FILENO,rand_buf,3);
 	
-	if(strcmp(rand_buf,"OK")) {
+	if(strcmp(rand_buf,"OK")==0) {
 		return 0;
 	}
 
