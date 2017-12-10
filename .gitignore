@@ -53,3 +53,5 @@ dkms.conf
 
 ourfs
 mihlserver
+log.txt
+logfs.txt
