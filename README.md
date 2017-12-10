@@ -4,11 +4,12 @@
 
 1. FUSE kernel dev library (use package manager to get libfuse-dev)
 2. FUSE user library (compile via meson+ninja the libfuse library from https://github.com/libfuse/libfuse)
-3. FUSE user library is registered with pkg-config (check pkg-config --modversion fuse3).
-4. Port 3001 available for listening on localhost for http requests
-5. Run make using Makefile provided
-6. Run ourfs -f [mountpoint] where mountpoint specifies a path to an existing directory
-
+3. libmicrotthpd-dev installed (use package manager)
+4. FUSE user library is registered with pkg-config (check pkg-config --modversion fuse3).
+5. Port 3001 available for listening on localhost for http requests
+6. Run make using Makefile provided
+7. Run ourfs -f [mountpoint] where mountpoint specifies a path to an existing directory
+8. Probably would only work on Linux.
 --------------------------------------------------------------------------------------
 
 ## What is this File System? ##
@@ -52,3 +53,11 @@ Record the string of text that appears (Example: uhjeifle12k3j4)
 *in the terminal*
 
 >The file was opened correctly, Congrats!
+
+----------------------------------------------------------------------
+
+## WIP ##
+
+Currently explodes on a pipe read from the http server side with error EIO.
+
+Is supposed to transfer the unique string of text from ourfs to the http server via pipe.
