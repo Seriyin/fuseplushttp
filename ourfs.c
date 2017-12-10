@@ -48,8 +48,6 @@ static const struct fuse_opt option_spec[] = {
 	FUSE_OPT_END
 };
 
-static int child_id;
-static int urand;
 static char rand_buf[PIPE_BUF];
 
 static void *our_init(struct fuse_conn_info *conn,
@@ -121,13 +119,15 @@ static int our_open(const char *path, struct fuse_file_info *fi)
 		exit(EXIT_FAILURE);
 	}
 
-	//Blocks here
+	alarm(120);
 	int err = 0;
 	err = read(STDIN_FILENO,rand_buf,PIPE_BUF);
 	if (err==-1)
 	{
-        fprintf(log,"read OK err : %d", errno);
-        exit(EXIT_FAILURE);
+		if(errno!=EINTR) {
+        	fprintf(log,"read OK err : %d", errno);
+        	exit(EXIT_FAILURE);
+		}
     }
     fprintf(log,"read OK : %d\n",err);
 	
@@ -182,8 +182,6 @@ static void donothing(int sig) {
 int main(int argc, char *argv[])
 {
 	log = fopen("./logfs.txt","w");
-	char buf[8];
-	int written;
 	int result;
 	char noise[4096];
 	int pipe_to_child[2];
@@ -202,7 +200,7 @@ int main(int argc, char *argv[])
 	
 	initstate(time(NULL),noise,4096);
 
-	child_id=fork();
+	int child_id=fork();
 	if (child_id==-1) 
 	{
         perror("failed creating HTTP server");
@@ -221,25 +219,10 @@ int main(int argc, char *argv[])
 	close(pipe_from_child[WRITE_END]);
 	close(pipe_to_child[READ_END]);
 
-	if(signal(SIGUSR1,donothing)==SIG_ERR) {
+	if(signal(SIGALRM,donothing)==SIG_ERR) {
 		perror("Failure registering signal\n");
 		exit(EXIT_FAILURE);
-	}
-
-
-	written = snprintf(buf,8,"%d",child_id);
-
-	for(;written<=8;written++) {
-		buf[written-1]='\0';
-	}
-
-	int tmp = write(STDOUT_FILENO,buf,8);
-	if (tmp!=8) {
-		fprintf(log,"write id : %d %d\n",tmp, errno);
-		kill(child_id,SIGKILL);
-		exit(EXIT_FAILURE);
-	}
-	
+	}	
 
 	/* Set defaults -- we have to use strdup so that
 	   fuse_opt_parse can free the defaults if other
