@@ -16,26 +16,15 @@
  * ## Source code ##
  * \include hello.c
  */
+#define __FUSE__
 
-
-#define FUSE_USE_VERSION 31
-
-#include <fuse.h>
-#include <stdio.h>
-#include <string.h>
-#include <errno.h>
-#include <fcntl.h>
-#include <stddef.h>
-#include <assert.h>
-#include <unistd.h>
-#include <stdlib.h>
-#include <sys/types.h>
-#include <sys/mman.h>
-#include <sys/wait.h>
-#include <limits.h>
+#include "ourfs.h"
 
 #define WRITE_END 1
 #define READ_END 0
+
+static FILE *log;
+
 
 /*
  * Command line options
@@ -61,7 +50,7 @@ static const struct fuse_opt option_spec[] = {
 
 static int child_id;
 static int urand;
-static char rand_buf[65];
+static char rand_buf[PIPE_BUF];
 
 static void *our_init(struct fuse_conn_info *conn,
 			struct fuse_config *cfg)
@@ -118,12 +107,30 @@ static int our_open(const char *path, struct fuse_file_info *fi)
 	if ((fi->flags & O_ACCMODE) != O_RDONLY)
 		return -EACCES;
 
-	read(urand,rand_buf,64);
+	for(int i=0;i<64;i++) {
+		if((rand_buf[i]=(random()%256))=='\0') {
+			rand_buf[i]= (rand_buf[i]+27)%256;
+		}
+	}
 
 	rand_buf[64]='\0';
 
-	write(STDOUT_FILENO,rand_buf,65);
-	read(STDIN_FILENO,rand_buf,3);
+	int tmp = write(STDOUT_FILENO,rand_buf,65);
+	if (tmp!=65) {
+		fprintf(log,"write rand : %d\n",tmp);
+		exit(EXIT_FAILURE);
+	}
+
+	//Blocks here
+	int err = 0;
+	err = read(STDIN_FILENO,rand_buf,PIPE_BUF);
+	if (err==-1)
+	{
+        fprintf(log,"read OK err : %d", errno);
+        exit(EXIT_FAILURE);
+    }
+    fprintf(log,"read OK : %d\n",err);
+	
 	
 	if(strcmp(rand_buf,"OK")==0) {
 		return 0;
@@ -174,33 +181,26 @@ static void donothing(int sig) {
 
 int main(int argc, char *argv[])
 {
+	log = fopen("./logfs.txt","w");
 	char buf[8];
 	int written;
 	int result;
+	char noise[4096];
 	int pipe_to_child[2];
 	int pipe_from_child[2];
 	struct fuse_args args = FUSE_ARGS_INIT(argc, argv);
-	if(signal(SIGINT,donothing)==SIG_ERR) {
-		perror("Failure registering signal\n");
-		exit(EXIT_FAILURE);
-	}
 	
-	if (pipe(pipe_from_child) == -1) {
+	if (pipe2(pipe_from_child,O_DIRECT) == -1) {
         perror("pipe creation failed\n");
         exit(EXIT_FAILURE);
     }
 
-	if (pipe(pipe_to_child) == -1) {
+	if (pipe2(pipe_to_child,O_DIRECT) == -1) {
         perror("pipe creation failed\n");
         exit(EXIT_FAILURE);
 	}
 	
-	urand = open("/dev/urandom",O_RDONLY);
-
-	if(urand == -1) {
-		perror("No /dev/urandom entropy source");
-		exit(EXIT_FAILURE);
-	}
+	initstate(time(NULL),noise,4096);
 
 	child_id=fork();
 	if (child_id==-1) 
@@ -211,16 +211,21 @@ int main(int argc, char *argv[])
 
 	if (child_id==0) 
 	{
-		dup2(pipe_to_child[READ_END],STDIN_FILENO);
-		dup2(pipe_from_child[WRITE_END],STDOUT_FILENO);
 		close(pipe_to_child[WRITE_END]);
 		close(pipe_from_child[READ_END]);
 		execlp("./mihlserver","mihlserver",NULL);
 	}
+	else {
 	dup2(pipe_from_child[READ_END],STDIN_FILENO);
 	dup2(pipe_to_child[WRITE_END],STDOUT_FILENO);
 	close(pipe_from_child[WRITE_END]);
 	close(pipe_to_child[READ_END]);
+
+	if(signal(SIGUSR1,donothing)==SIG_ERR) {
+		perror("Failure registering signal\n");
+		exit(EXIT_FAILURE);
+	}
+
 
 	written = snprintf(buf,8,"%d",child_id);
 
@@ -228,7 +233,12 @@ int main(int argc, char *argv[])
 		buf[written-1]='\0';
 	}
 
-	write(STDOUT_FILENO,buf,8);
+	int tmp = write(STDOUT_FILENO,buf,8);
+	if (tmp!=8) {
+		fprintf(log,"write id : %d %d\n",tmp, errno);
+		kill(child_id,SIGKILL);
+		exit(EXIT_FAILURE);
+	}
 	
 
 	/* Set defaults -- we have to use strdup so that
@@ -256,4 +266,6 @@ int main(int argc, char *argv[])
 	kill(child_id,SIGKILL);
 
 	return result;
+
+	}
 }
