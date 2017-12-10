@@ -1,10 +1,14 @@
+#define _GNU_SOURCE
+
 #ifdef __FUSE__
 #define FUSE_USE_VERSION 31
 
 #include <fuse.h>
 #endif
-#define _GNU_SOURCE
+
+
 #ifdef __MICROHTTP__
+
 #ifndef _WIN32
 #include <sys/select.h>
 #include <sys/socket.h>
@@ -13,6 +17,7 @@
 #endif
 #include <microhttpd.h>
 #endif
+
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
