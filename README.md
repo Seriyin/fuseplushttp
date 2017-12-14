@@ -3,7 +3,7 @@
 ## Authors ##
 
 - André Diogo - A75505@alunos.uminho.pt
-- António Silva - A73287@alunos.uminho.pt
+- António Silva - A73827@alunos.uminho.pt
 - Seihakrith Tan - E8030@alunos.uminho.pt
 
 ---------------------------
