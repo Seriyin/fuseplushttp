@@ -1,5 +1,13 @@
 # fuseplushttp #
 
+## Authors ##
+
+- André Diogo - A75505@alunos.uminho.pt
+- António Silva - A73287@alunos.uminho.pt
+- Seihakrith Tan - E8030@alunos.uminho.pt
+
+---------------------------
+
 ## Pre-requisites ##
 
 1. FUSE kernel dev library (use package manager to get libfuse-dev)
@@ -61,3 +69,7 @@ Record the string of text that appears (Example: uhjeifle12k3j4)
 Currently explodes on a pipe read from the http server side with error EIO.
 
 Is supposed to transfer the unique string of text from ourfs to the http server via pipe.
+
+## TODO ##
+
+Substitute Pipes with sockets.
