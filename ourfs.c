@@ -20,11 +20,37 @@
 
 #include "ourfs.h"
 
-#define WRITE_END 1
-#define READ_END 0
-
 static FILE *log;
+static int udpSocket[2];
+static struct sockaddr_in serverAddr[2];
+static socklen_t addr_size[2];
+static char rand_buf[RAND_SIZE];
 
+
+int tryrecv(void *buf, FILE *log) {
+    static int it = 0;
+    int err = 0;
+	err = recvfrom(udpSocket[READ_END],buf,sizeof(buf[0])*RAND_SIZE,0,(struct sockaddr *)&serverAddr[READ_END], &addr_size[READ_END]);
+	if (err==-1)
+	{
+		if(errno!=EINTR) {
+        	fprintf(log,"recv %d err : %d", it, errno);
+        	exit(EXIT_FAILURE);
+		}
+    }
+    fprintf(log,"recv %d : %d\n", it, err);
+    it++;
+    return err;
+}
+
+int trysend(void *buf,FILE *log) {
+    int err=sendto(udpSocket[WRITE_END],buf,sizeof(buf[0])*RAND_SIZE,0,(struct sockaddr *)&serverAddr[WRITE_END],addr_size[WRITE_END]);
+	if (err!=(sizeof(buf[0])*RAND_SIZE)) {
+		fprintf(log,"write rand : %d\n",errno);
+		exit(EXIT_FAILURE);
+    }
+    return err;
+}
 
 /*
  * Command line options
@@ -48,7 +74,6 @@ static const struct fuse_opt option_spec[] = {
 	FUSE_OPT_END
 };
 
-static char rand_buf[PIPE_BUF];
 
 static void *our_init(struct fuse_conn_info *conn,
 			struct fuse_config *cfg)
@@ -105,31 +130,19 @@ static int our_open(const char *path, struct fuse_file_info *fi)
 	if ((fi->flags & O_ACCMODE) != O_RDONLY)
 		return -EACCES;
 
-	for(int i=0;i<64;i++) {
+	for(int i=0;i<RAND_SIZE;i++) {
 		rand_buf[i]=random()%256;
 	}
 
-	int tmp = write(STDOUT_FILENO,rand_buf,64);
-	if (tmp!=64) {
-		fprintf(log,"write rand : %d\n",tmp);
-		exit(EXIT_FAILURE);
-	}
+	int err;
+	err=trysend(rand_buf,log);
 
-	for(int i=0; i<64;i++) {
+	for(int i=0; i<RAND_SIZE;i++) {
         rand_buf[i]='\0';
     }
 
 	alarm(120);
-	int err = 0;
-	err = read(STDIN_FILENO,rand_buf,PIPE_BUF);
-	if (err==-1)
-	{
-		if(errno!=EINTR) {
-        	fprintf(log,"read OK err : %d", errno);
-        	exit(EXIT_FAILURE);
-		}
-    }
-    fprintf(log,"read OK : %d\n",err);
+	err=tryrecv(rand_buf,log);
 	
 	
 	if(strcmp(rand_buf,"OK")==0) {
@@ -177,8 +190,50 @@ static void show_help(const char *progname)
 
 
 static void donothing(int sig) {
-	rand_buf[0]='\0';
+	for(int i=0; i<RAND_SIZE;i++) {
+        rand_buf[i]='\0';
+    }
 }
+
+
+void init_sockets() {
+	/*Create Read UDP socket*/
+  	udpSocket[READ_END] = socket(PF_INET, SOCK_DGRAM, 0);
+	if(udpSocket[READ_END]==-1) {
+		perror("Failure creating Read UDP socket");
+		exit(EXIT_FAILURE);
+	}
+
+	/*Create Write UDP socket*/
+  	udpSocket[WRITE_END] = socket(PF_INET, SOCK_DGRAM, 0);
+	if(udpSocket[WRITE_END]==-1) {
+		perror("Failure creating Write UDP socket");
+		exit(EXIT_FAILURE);
+	}
+	
+
+	/*Configure settings in address struct*/
+  	serverAddr[READ_END].sin_family = AF_INET;
+  	serverAddr[READ_END].sin_port = htons(3003);
+  	serverAddr[READ_END].sin_addr.s_addr = inet_addr("127.0.0.1");
+  	memset(serverAddr[READ_END].sin_zero, '\0', sizeof serverAddr[READ_END].sin_zero);
+
+	serverAddr[WRITE_END].sin_family = AF_INET;
+  	serverAddr[WRITE_END].sin_port = htons(3002);
+  	serverAddr[WRITE_END].sin_addr.s_addr = inet_addr("127.0.0.1");
+  	memset(serverAddr[WRITE_END].sin_zero, '\0', sizeof serverAddr[WRITE_END].sin_zero);
+	  
+
+	if(bind(udpSocket[WRITE_END], (struct sockaddr *) &(serverAddr[WRITE_END]), sizeof serverAddr[WRITE_END])==-1)
+	{
+		perror("Failure binding UDP socket to port 3002");
+		exit(EXIT_FAILURE);
+	}
+    addr_size[READ_END] = sizeof serverAddr[READ_END];
+	addr_size[WRITE_END] = sizeof serverAddr[WRITE_END];
+
+}
+
 
 
 int main(int argc, char *argv[])
@@ -186,20 +241,15 @@ int main(int argc, char *argv[])
 	log = fopen("./logfs.txt","w");
 	int result;
 	char noise[4096];
-	int pipe_to_child[2];
-	int pipe_from_child[2];
 	struct fuse_args args = FUSE_ARGS_INIT(argc, argv);
-	
-	if (pipe2(pipe_from_child,O_DIRECT) == -1) {
-        perror("pipe creation failed\n");
-        exit(EXIT_FAILURE);
-    }
 
-	if (pipe2(pipe_to_child,O_DIRECT) == -1) {
-        perror("pipe creation failed\n");
-        exit(EXIT_FAILURE);
-	}
-	
+	if(signal(SIGALRM,donothing)==SIG_ERR) {
+		perror("Failure registering signal\n");
+		exit(EXIT_FAILURE);
+	}	
+
+	init_sockets();
+
 	initstate(time(NULL),noise,4096);
 
 	int child_id=fork();
@@ -211,21 +261,10 @@ int main(int argc, char *argv[])
 
 	if (child_id==0) 
 	{
-		close(pipe_to_child[WRITE_END]);
-		close(pipe_from_child[READ_END]);
 		execlp("./mihlserver","mihlserver",NULL);
 	}
 	else {
-	dup2(pipe_from_child[READ_END],STDIN_FILENO);
-	dup2(pipe_to_child[WRITE_END],STDOUT_FILENO);
-	close(pipe_from_child[WRITE_END]);
-	close(pipe_to_child[READ_END]);
-
-	if(signal(SIGALRM,donothing)==SIG_ERR) {
-		perror("Failure registering signal\n");
-		exit(EXIT_FAILURE);
-	}	
-
+	
 	/* Set defaults -- we have to use strdup so that
 	   fuse_opt_parse can free the defaults if other
 	   values are specified */
@@ -246,6 +285,11 @@ int main(int argc, char *argv[])
 		assert(fuse_opt_add_arg(&args, "--help") == 0);
 		args.argv[0] = (char*) "";
 	}
+
+	for(int i=0; i<RAND_SIZE;i++) {
+        rand_buf[i]='\0';
+    }
+
 
 	result = fuse_main(args.argc, args.argv, &our_oper, NULL);
 	kill(child_id,SIGKILL);

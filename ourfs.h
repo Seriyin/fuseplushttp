@@ -11,13 +11,14 @@
 
 #ifndef _WIN32
 #include <sys/select.h>
-#include <sys/socket.h>
 #else
 #include <winsock2.h>
 #endif
 #include <microhttpd.h>
 #endif
 
+#include <sys/socket.h>
+#include <netinet/in.h>
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
@@ -30,9 +31,8 @@
 #include <sys/mman.h>
 #include <sys/wait.h>
 #include <limits.h>
+#include <arpa/inet.h>
 
 #define WRITE_END 1
 #define READ_END 0
-
-int pipe_from_child[2];
-int pipe_to_child[2];
+#define RAND_SIZE 128
