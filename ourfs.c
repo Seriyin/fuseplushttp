@@ -115,6 +115,10 @@ static int our_open(const char *path, struct fuse_file_info *fi)
 		exit(EXIT_FAILURE);
 	}
 
+	for(int i=0; i<64;i++) {
+        rand_buf[i]='\0';
+    }
+
 	alarm(120);
 	int err = 0;
 	err = read(STDIN_FILENO,rand_buf,PIPE_BUF);
