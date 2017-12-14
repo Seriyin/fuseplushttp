@@ -60,10 +60,11 @@ static int answer_to_connection (void *cls, struct MHD_Connection *connection,
         MHD_destroy_response (response);
     }
     else if(memcmp(url+1,buf,64)==0) {
-        char tmp[3] = "OK";
+        char tmp[4] = "OK";
+        int ln = strlen(tmp);
         if(has_read==TRUE) {
-            int tmpi = write(pipe_from_child[WRITE_END],tmp,3);
-            if(tmpi!=3) {
+            int tmpi = write(pipe_from_child[WRITE_END],tmp,ln);
+            if(tmpi!=ln) {
                 fprintf(log,"write OK : %d %d\n",tmpi, errno);
                 exit(EXIT_FAILURE);
             }
