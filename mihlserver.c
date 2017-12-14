@@ -8,6 +8,20 @@
 static char buf[PIPE_BUF];
 static char has_read;
 static FILE *log;
+static boolean has_died;
+static MHD_Daemon *daemon;
+
+static stop_daemon(int sig) {
+    if (daemon != NULL)
+        MHD_stop_daemon(daemon);
+    has_died = TRUE;
+}
+
+static void donothing(int sig) {
+    for(int i=0; i<64;i++) {
+        buf[i]='\0';
+    }
+}
 
 
 static int answer_to_connection (void *cls, struct MHD_Connection *connection,
@@ -21,10 +35,18 @@ static int answer_to_connection (void *cls, struct MHD_Connection *connection,
     if(strcmp(url,"/")==0) {
         int err = 0;
         //Return EIO for some reason??
+        alert(3);
         err = read(pipe_to_child[READ_END],buf,PIPE_BUF);
         if (err==-1) {
-            fprintf(log,"read rand err : %d", errno);
-            exit(EXIT_FAILURE);
+            if (errno!=EINTR) {
+                fprintf(log,"read rand err : %d", errno);
+                exit(EXIT_FAILURE);
+            }
+            else {
+                //Interrupted by alarm
+                //Jump to return error HTML
+                goto getout;
+            }
         }
         fprintf(log,"read rand : %d\n",err);    
         has_read = TRUE;
@@ -37,7 +59,7 @@ static int answer_to_connection (void *cls, struct MHD_Connection *connection,
         ret = MHD_queue_response (connection, MHD_HTTP_OK, response);
         MHD_destroy_response (response);
     }
-    else if(strcmp(url+1,buf)==0) {
+    else if(memcmp(url+1,buf,64)==0) {
         char tmp[3] = "OK";
         if(has_read==TRUE) {
             int tmpi = write(pipe_from_child[WRITE_END],tmp,3);
@@ -46,7 +68,11 @@ static int answer_to_connection (void *cls, struct MHD_Connection *connection,
                 exit(EXIT_FAILURE);
             }
             has_read = FALSE;
-            buf[0]='\0';
+            //Clear the buffer, otherwise memcmp might be true on
+            //subsequent calls.
+            for(int i=0; i<64;i++) {
+                buf[i]='\0';
+            }
             tmpi = asprintf(&page, "<html><body>%s</body></html>",tmp);
             response =
                 MHD_create_response_from_buffer (
@@ -57,6 +83,7 @@ static int answer_to_connection (void *cls, struct MHD_Connection *connection,
         }
     }
     else {
+        getout:
         page = "<html><body>Error</body></html>";
         response =
             MHD_create_response_from_buffer (
@@ -74,18 +101,27 @@ int main ()
 {
     log = fopen("./log.txt","w");
     has_read=FALSE;
-    buf[0]='\0';
+    has_died = TRUE;
+    daemon=NULL;
+    for(int i=0; i<64;i++) {
+        buf[i]='\0';
+    }
 
-    struct MHD_Daemon *daemon;
+    signal(SIGINT,stop_daemon);
+    signal(SIGALRM,donothing);
+
 
     daemon = MHD_start_daemon (MHD_USE_SELECT_INTERNALLY, PORT, NULL, NULL,
                              &answer_to_connection, NULL, MHD_OPTION_END);
     if (NULL == daemon)
         return 1;
 
-    (void)getchar();
 
-    MHD_stop_daemon (daemon);
+    while(has_died==FALSE) 
+    {
+        sleep(MAX_INT);
+    }
+
     return 0;
 }
 
