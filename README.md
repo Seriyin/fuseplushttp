@@ -15,6 +15,7 @@
 3. libmicrotthpd-dev installed (use package manager)
 4. FUSE user library is registered with pkg-config (check pkg-config --modversion fuse3).
 5. Port 3001 available for listening on localhost for http requests
+6. Port 3002 and 3003 available for UDP connections.
 6. Run make using Makefile provided
 7. Run ourfs -f [mountpoint] where mountpoint specifies a path to an existing directory
 8. Probably would only work on Linux.
@@ -66,10 +67,10 @@ Record the string of text that appears (Example: uhjeifle12k3j4)
 
 ## WIP ##
 
-Currently explodes on a pipe read from the http server side with error EIO.
+Is supposed to transfer the unique string of text from ourfs to the http server via UDP sockets.
 
-Is supposed to transfer the unique string of text from ourfs to the http server via pipe.
+Currently misteriously hangs infinitely.
 
 ## TODO ##
 
-Substitute Pipes with sockets.
+Make it work with voodoo magic.
