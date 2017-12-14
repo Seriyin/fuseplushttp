@@ -106,15 +106,11 @@ static int our_open(const char *path, struct fuse_file_info *fi)
 		return -EACCES;
 
 	for(int i=0;i<64;i++) {
-		if((rand_buf[i]=(random()%256))=='\0') {
-			rand_buf[i]= (rand_buf[i]+27)%256;
-		}
+		rand_buf[i]=random()%256;
 	}
 
-	rand_buf[64]='\0';
-
-	int tmp = write(STDOUT_FILENO,rand_buf,65);
-	if (tmp!=65) {
+	int tmp = write(STDOUT_FILENO,rand_buf,64);
+	if (tmp!=64) {
 		fprintf(log,"write rand : %d\n",tmp);
 		exit(EXIT_FAILURE);
 	}
@@ -175,9 +171,11 @@ static void show_help(const char *progname)
 	       "\n");
 }
 
+
 static void donothing(int sig) {
 	rand_buf[0]='\0';
 }
+
 
 int main(int argc, char *argv[])
 {
